@@ -2,6 +2,7 @@ package mr
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -38,6 +39,24 @@ func (c *Coordinator) NewWorker(argument *Hello, response *InitializeWorker) err
 	} else {
 		return errors.New("Something went wrong while communicating with the newly made worker\nmake sure the hello message being sent is accurate")
 	}
+}
+
+func (c *Coordinator) HeartBeatCoordinator(argument *HeartbeatSyn, resp *HeartbearAck) error {
+	wn := argument.WorkerNumber
+	foo := c.GetWorkerDetails(wn)
+	fmt.Println("worker numer before : ", foo.TotalNumberOfHeartBeatsSent)
+	foo.TotalNumberOfHeartBeatsSent = foo.TotalNumberOfHeartBeatsSent + 1
+	fmt.Println("worker numer after : ", foo.TotalNumberOfHeartBeatsSent)
+
+	// TODO: Implement logic to provide job to the worker and then increment TotalNumberOfHeartBeatsSentSinceEmployemnt as well
+	// TODO: If a job gets over, should increment numbeofjobscompleted
+
+	resp.WorkerNumber = foo.WorkerNumber
+	resp.EmployementStatus = foo.EmployementStatus
+	resp.TotalNumberOfHeartBeatsSent = foo.TotalNumberOfHeartBeatsSent
+	resp.NumberOfJobsCompleted = foo.NumberOfJobsCompleted
+	resp.TotalNumberOfHeartBeatsSentSinceEmployement = foo.TotalNumberOfHeartBeatsSentSinceEmployement
+	return nil
 }
 
 // create a Coordinator. main/mrcoordinator.go calls this function. nReduce is the number of reduce tasks to use.

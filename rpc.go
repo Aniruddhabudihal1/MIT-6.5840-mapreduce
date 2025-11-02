@@ -5,14 +5,30 @@ import (
 	"strconv"
 )
 
-// Hello : worker -> master: assigns a unique worker number
+// Hello : worker -> master: Hello world thats all
 type Hello struct {
 	HelloWorld string
 }
 
-// ACKing : worker -> master : confirms it recieved the hello rpc
+// InitializeWorker: master -> worker : assigns a unique worker number to the worker instance
 type InitializeWorker struct {
 	AssignedWorkerNumber int
+}
+
+type HeartbeatSyn struct {
+	WorkerNumber                                int
+	EmployementStatus                           bool
+	NumberOfJobsCompleted                       int
+	TotalNumberOfHeartBeatsSent                 int
+	TotalNumberOfHeartBeatsSentSinceEmployement int
+}
+
+type HeartbearAck struct {
+	WorkerNumber                                int
+	EmployementStatus                           bool
+	TotalNumberOfHeartBeatsSent                 int
+	TotalNumberOfHeartBeatsSentSinceEmployement int
+	NumberOfJobsCompleted                       int
 }
 
 func coordinatorSock() string {

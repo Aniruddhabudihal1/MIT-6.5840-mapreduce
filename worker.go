@@ -5,6 +5,8 @@ import (
 	"hash/fnv"
 	"log"
 	"net/rpc"
+	"sync"
+	Time "time"
 )
 
 // Map functions return a slice of KeyValue.
@@ -22,10 +24,34 @@ func ihash(key string) int {
 
 // main/mrworker.go calls this function.
 func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
-	CallToInitialize()
+	var wg sync.WaitGroup
+
+	workerNumber := CallToInitialize()
+	employementStatus := false
+	NumberOfJobsCompleted := 0
+	TotalNumberOfHeartBeatsSent := 0
+	TotalNumberOfHeartBeatsSentSinceEmployement := 0
+
+	foo := Time.NewTicker(Time.Second * 3)
+	tickerChan := make(chan any)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-tickerChan:
+				fmt.Println("Some other logic too be implemented here")
+			case <-foo.C:
+				actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement, employementStatus)
+				fmt.Println("Heartbeat done")
+			}
+		}
+	}()
+	wg.Wait()
 }
 
-func CallToInitialize() {
+func CallToInitialize() int {
 	ToSend := Hello{"hello world"}
 
 	reply := InitializeWorker{}
@@ -33,8 +59,22 @@ func CallToInitialize() {
 	ok := call("Coordinator.NewWorker", &ToSend, &reply)
 	if ok {
 		fmt.Println("The worker number assigned to this worker is : ", reply.AssignedWorkerNumber)
+		return reply.AssignedWorkerNumber
 	} else {
 		fmt.Printf("while trying to Initialize Worker by communicating with the server the call failed!\n")
+		return -1
+	}
+}
+
+func actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement int, employementStatus bool) {
+	ToSend := HeartbeatSyn{workerNumber, employementStatus, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement}
+	Reply := HeartbearAck{}
+
+	ok := call("Coordinator.HeartBeatCoordinator", &ToSend, &Reply)
+	if ok {
+		fmt.Println("Heratbeat complete : Total Number of Heartbeats completed - ", Reply.TotalNumberOfHeartBeatsSent)
+	} else {
+		fmt.Println("Something went wrong while sending the hearbeat to the coordinator ")
 	}
 }
 
