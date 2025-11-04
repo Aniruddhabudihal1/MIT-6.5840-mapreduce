@@ -1,5 +1,10 @@
 package mr
 
+import (
+	"fmt"
+	"time"
+)
+
 type WorkerNode struct {
 	next *WorkerNode
 	prev *WorkerNode
@@ -9,41 +14,45 @@ type WorkerNode struct {
 	TotalNumberOfHeartBeatsSent                 int
 	TotalNumberOfHeartBeatsSentSinceEmployement int
 	NumberOfJobsCompleted                       int
+	TimeStamp                                   time.Time
 }
 
 func NewNode(wn int) *WorkerNode {
-	new := WorkerNode{nil, nil, wn, false, 0, 0, 0}
+	new := WorkerNode{nil, nil, wn, false, 0, 0, 0, time.Now()}
 	return &new
 }
 
 func (c *Coordinator) GetLatestValue() int {
 	tmp := c.head
 	if tmp == nil {
-		return 1
+		return 0
 	}
 	for ; tmp.next != nil; tmp = tmp.next {
 	}
-	x := tmp.WorkerNumber
-	return x + 1
+	return tmp.WorkerNumber
 }
 
 func (c *Coordinator) InsertNode() int {
+	bar := c.GetLatestValue() + 1
 	if c.head == nil {
-		c.head = NewNode(c.GetLatestValue())
-		return c.GetLatestValue()
+		c.head = NewNode(bar)
+		return bar
 	}
 	foo := NewNode(c.GetLatestValue())
 	tmp := c.head
 	for ; tmp.next != nil; tmp = tmp.next {
 	}
 	tmp.next = foo
-	return c.GetLatestValue()
+	foo.prev = tmp
+	return bar
 }
 
-func (c *Coordinator) DeleteBasedOnWn(wn int) {
+func (c *Coordinator) DeleteWorker(wn int) {
 	tmp := c.head
 
-	if tmp.WorkerNumber == wn {
+	if c.head.WorkerNumber == wn && c.head.next == nil {
+		c.head = nil
+	} else if c.head.WorkerNumber == wn && c.head.next != nil {
 		c.head = tmp.next
 		tmp.next = nil
 		return
@@ -67,7 +76,7 @@ func (c *Coordinator) DeleteBasedOnWn(wn int) {
 func (c *Coordinator) GetWorkerDetails(wn int) *WorkerNode {
 	tmp := c.head
 
-	for ; tmp.next != nil && tmp.WorkerNumber == wn; tmp = tmp.next {
+	for ; tmp.next != nil && tmp.WorkerNumber != wn; tmp = tmp.next {
 	}
 	return tmp
 }
@@ -102,4 +111,39 @@ func (c *Coordinator) IncrementJobsDone(wn int) int {
 	node := c.GetWorkerDetails(wn)
 	ret := node.NumberOfJobsCompleted + 1
 	return ret
+}
+
+func ToDelete(tmp *WorkerNode) bool {
+	currTime := time.Now()
+
+	x := currTime.Sub(tmp.TimeStamp)
+	if x > 9 {
+		fmt.Println("Deleted node with wn : ", tmp.WorkerNumber)
+		return true
+	}
+	return false
+}
+
+func (c *Coordinator) HouseKeeping() {
+	tmp := c.head
+	for ; tmp.next != nil; tmp = tmp.next {
+		if ToDelete(tmp) {
+			if tmp.next == nil && tmp.prev != nil {
+				back := tmp.prev
+				back.next = nil
+				tmp.prev = nil
+			} else if tmp.next == nil && tmp.prev == nil {
+				c.head = nil
+			} else if tmp.prev == nil && tmp.next != nil {
+				tmp.next = nil
+			} else {
+				back := tmp.prev
+				front := tmp.next
+				back.next = front
+				front.prev = back
+				tmp.next = nil
+				tmp.prev = nil
+			}
+		}
+	}
 }

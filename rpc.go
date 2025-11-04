@@ -3,6 +3,7 @@ package mr
 import (
 	"os"
 	"strconv"
+	"time"
 )
 
 // Hello : worker -> master: Hello world thats all
@@ -21,6 +22,7 @@ type HeartbeatSyn struct {
 	NumberOfJobsCompleted                       int
 	TotalNumberOfHeartBeatsSent                 int
 	TotalNumberOfHeartBeatsSentSinceEmployement int
+	Timestamp                                   time.Time
 }
 
 type HeartbearAck struct {

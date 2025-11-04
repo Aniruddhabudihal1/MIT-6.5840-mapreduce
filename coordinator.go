@@ -9,10 +9,15 @@ import (
 	"net/rpc"
 	"os"
 	"strings"
+	"sync"
+	"time"
+	cr "github.com/go-co-op/gocron/v2"
 )
 
 type Coordinator struct {
 	head *WorkerNode
+	MapQueueHead *MappingQueueNode
+	reduceQueueHead *ReduceQueueNode
 }
 
 // start a thread that listens for RPCs from worker.go
@@ -43,26 +48,33 @@ func (c *Coordinator) NewWorker(argument *Hello, response *InitializeWorker) err
 
 func (c *Coordinator) HeartBeatCoordinator(argument *HeartbeatSyn, resp *HeartbearAck) error {
 	wn := argument.WorkerNumber
-	foo := c.GetWorkerDetails(wn)
-	fmt.Println("worker numer before : ", foo.TotalNumberOfHeartBeatsSent)
-	foo.TotalNumberOfHeartBeatsSent = foo.TotalNumberOfHeartBeatsSent + 1
-	fmt.Println("worker numer after : ", foo.TotalNumberOfHeartBeatsSent)
+	nodeInstance := c.GetWorkerDetails(wn)
+	nodeInstance.TotalNumberOfHeartBeatsSent = nodeInstance.TotalNumberOfHeartBeatsSent + 1
+	nodeInstance.TimeStamp = argument.Timestamp
+	fmt.Println("Total Number of heartbeats sent : ", nodeInstance.TotalNumberOfHeartBeatsSent, "from worker number : ", argument.WorkerNumber)
 
 	// TODO: Implement logic to provide job to the worker and then increment TotalNumberOfHeartBeatsSentSinceEmployemnt as well
 	// TODO: If a job gets over, should increment numbeofjobscompleted
 
-	resp.WorkerNumber = foo.WorkerNumber
-	resp.EmployementStatus = foo.EmployementStatus
-	resp.TotalNumberOfHeartBeatsSent = foo.TotalNumberOfHeartBeatsSent
-	resp.NumberOfJobsCompleted = foo.NumberOfJobsCompleted
-	resp.TotalNumberOfHeartBeatsSentSinceEmployement = foo.TotalNumberOfHeartBeatsSentSinceEmployement
+	resp.WorkerNumber = nodeInstance.WorkerNumber
+	resp.EmployementStatus = nodeInstance.EmployementStatus
+	resp.TotalNumberOfHeartBeatsSent = nodeInstance.TotalNumberOfHeartBeatsSent
+	resp.NumberOfJobsCompleted = nodeInstance.NumberOfJobsCompleted
+	resp.TotalNumberOfHeartBeatsSentSinceEmployement = nodeInstance.TotalNumberOfHeartBeatsSentSinceEmployement
 	return nil
+}
+
+func ExecuteCronJobs(){
+	start := time.Duration(3 * time.Second)
+	end := time.Duration(9 * time.Second)
+	gocron.DurationRandomJob(start, end).
 }
 
 // create a Coordinator. main/mrcoordinator.go calls this function. nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
 	c.server()
+
 	return &c
 }
 

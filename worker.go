@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/rpc"
 	"sync"
-	Time "time"
+	"time"
 )
 
 // Map functions return a slice of KeyValue.
@@ -32,7 +32,7 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 	TotalNumberOfHeartBeatsSent := 0
 	TotalNumberOfHeartBeatsSentSinceEmployement := 0
 
-	foo := Time.NewTicker(Time.Second * 3)
+	foo := time.NewTicker(time.Second * 3)
 	tickerChan := make(chan any)
 
 	wg.Add(1)
@@ -41,10 +41,9 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		for {
 			select {
 			case <-tickerChan:
-				fmt.Println("Some other logic too be implemented here")
+				fmt.Println("Meanwhile Some other logic too be implemented here")
 			case <-foo.C:
 				actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement, employementStatus)
-				fmt.Println("Heartbeat done")
 			}
 		}
 	}()
@@ -67,7 +66,7 @@ func CallToInitialize() int {
 }
 
 func actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement int, employementStatus bool) {
-	ToSend := HeartbeatSyn{workerNumber, employementStatus, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement}
+	ToSend := HeartbeatSyn{workerNumber, employementStatus, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement, time.Now()}
 	Reply := HeartbearAck{}
 
 	ok := call("Coordinator.HeartBeatCoordinator", &ToSend, &Reply)
