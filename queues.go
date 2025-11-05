@@ -5,7 +5,6 @@ type MappingQueueNode struct {
 	next                          *MappingQueueNode
 	prev                          *MappingQueueNode
 }
-
 type ReduceQueueNode struct {
 	inputFilePath, outputFilePath string
 	next                          *ReduceQueueNode
@@ -18,15 +17,13 @@ func NewMapTask(inPath, outPath string) *MappingQueueNode {
 }
 
 func (c *Coordinator) InsertIntoMapQueue(node *MappingQueueNode) {
-	NewNode := NewMapTask(node.inputFilePath, node.outputFilePath)
-
 	if c.MapQueueHead == nil {
-		c.MapQueueHead = NewNode
+		c.MapQueueHead = node
 		return
 	}
-	NewNode.next = c.MapQueueHead
-	c.MapQueueHead.prev = NewNode
-	c.MapQueueHead = NewNode
+	node.next = c.MapQueueHead
+	c.MapQueueHead.prev = node
+	c.MapQueueHead = node
 }
 
 func (c *Coordinator) PopMapTask() *MappingQueueNode {

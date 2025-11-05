@@ -10,7 +10,6 @@ import (
 	"net/rpc"
 	"os"
 	"strings"
-	// "sync"
 )
 
 type Coordinator struct {
@@ -74,12 +73,21 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	if err1 != nil {
 		panic(err1)
 	}
+	err2 := os.MkdirAll("inter-files", 0o755)
+	if err2 != nil {
+		panic(err2)
+	}
 
 	for i := 0; i < len(files); i++ {
-		fmt.Println(files[i])
 		ExtractContent(files[i])
 	}
 
+	c.AddingToQueue()
+
+	tmp := c.MapQueueHead
+	for ; tmp.next != nil; tmp = tmp.next {
+		fmt.Println(tmp.inputFilePath, " and the output path is ", tmp.outputFilePath)
+	}
 	return &c
 }
 
@@ -115,11 +123,37 @@ func extraction(filename string, FileContent *os.File, offset int64, i int64) er
 		panic(err3)
 	}
 	_, err4 := io.CopyN(dst, FileContent, offset)
+
 	if errors.Is(err4, io.EOF) || errors.Is(err4, io.ErrUnexpectedEOF) {
 		return err4
 	}
 
 	return nil
+}
+
+func (c *Coordinator) AddingToQueue() {
+	base := "/home/ani/Documents/6.5840/src/main/map-files/"
+	inter := "/home/ani/Documents/6.5840/src/main/inter-files/"
+	x, err := ListNames(base)
+	if err != nil {
+		panic(err)
+	}
+	for i := range x {
+		foo := NewMapTask(x[i], inter)
+		c.InsertIntoMapQueue(foo)
+	}
+}
+
+func ListNames(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, e.Name())
+	}
+	return out, nil
 }
 
 // main/mrcoordinator.go calls Done() periodically to find out if the entire job has finished.
