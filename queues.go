@@ -1,7 +1,5 @@
 package mr
 
-import "fmt"
-
 type MappingQueueNode struct {
 	inputFilePath, outputFilePath string
 	next                          *MappingQueueNode

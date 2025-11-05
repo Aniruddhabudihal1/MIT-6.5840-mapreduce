@@ -3,20 +3,18 @@ package mr
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/rpc"
 	"os"
 	"strings"
-	"sync"
-	"time"
-	cr "github.com/go-co-op/gocron/v2"
 )
 
 type Coordinator struct {
-	head *WorkerNode
-	MapQueueHead *MappingQueueNode
+	head            *WorkerNode
+	MapQueueHead    *MappingQueueNode
 	reduceQueueHead *ReduceQueueNode
 }
 
@@ -64,18 +62,55 @@ func (c *Coordinator) HeartBeatCoordinator(argument *HeartbeatSyn, resp *Heartbe
 	return nil
 }
 
-func ExecuteCronJobs(){
-	start := time.Duration(3 * time.Second)
-	end := time.Duration(9 * time.Second)
-	gocron.DurationRandomJob(start, end).
-}
-
 // create a Coordinator. main/mrcoordinator.go calls this function. nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
+	// Initializes the coordinator and the interaction between the worker and the Coordinator
 	c := Coordinator{}
 	c.server()
 
+	for i := range files {
+		c.ExtractContent(files[i])
+	}
+
 	return &c
+}
+
+// This breaks down the main file and pushes the tasks to the mapping queue
+func (c *Coordinator) ExtractContent(fileName string) {
+	fileInstance, err := os.Open(fileName)
+	if err != nil {
+		fmt.Println(err)
+		log.Fatal("Something went wrong ! \nCheck if the file exists")
+	}
+
+	var offset int64
+	offset = 64000
+	var i int64
+	i = 0
+	for ; ; i++ {
+		err := extraction(fileInstance, offset, i)
+		if err != nil {
+			break
+		}
+	}
+}
+
+func extraction(FileContent *os.File, offset int64, i int64) error {
+	_, err1 := FileContent.Seek(offset*i, 0)
+	if err1 != nil {
+		panic(err1)
+	}
+
+	name := fmt.Sprintf("mr-map-task-%d", i)
+	dst, err3 := os.Create(name)
+	if err3 != nil {
+		panic(err3)
+	}
+	_, err4 := io.CopyN(dst, FileContent, 64)
+	if err4 != nil && err4 == io.EOF {
+		return err4
+	}
+	return nil
 }
 
 // main/mrcoordinator.go calls Done() periodically to find out if the entire job has finished.
@@ -86,13 +121,3 @@ func (c *Coordinator) Done() bool {
 
 	return ret
 }
-
-/*
-// an example RPC handler.
-
-// the RPC argument and reply types are defined in rpc.go.
-func (c *Coordinator) Example(args *ExampleArgs, reply *ExampleReply) error {
-	reply.Y = args.X + 1
-	return nil
-}
-*/

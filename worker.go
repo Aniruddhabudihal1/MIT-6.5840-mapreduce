@@ -26,6 +26,7 @@ func ihash(key string) int {
 func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
 	var wg sync.WaitGroup
 
+	// Global Variables
 	workerNumber := CallToInitialize()
 	employementStatus := false
 	NumberOfJobsCompleted := 0
