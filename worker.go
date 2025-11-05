@@ -3,11 +3,22 @@ package mr
 import (
 	"fmt"
 	"hash/fnv"
+	"io"
 	"log"
 	"net/rpc"
+	"os"
+	"sort"
 	"sync"
 	"time"
 )
+
+// for sorting by key.
+type ByKey []KeyValue
+
+// for sorting by key.
+func (a ByKey) Len() int           { return len(a) }
+func (a ByKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
 
 // Map functions return a slice of KeyValue.
 type KeyValue struct {
@@ -32,6 +43,8 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 	NumberOfJobsCompleted := 0
 	TotalNumberOfHeartBeatsSent := 0
 	TotalNumberOfHeartBeatsSentSinceEmployement := 0
+	locationToBeRead := ""
+	TheNumberOfReduceTasks := 0
 
 	foo := time.NewTicker(time.Second * 3)
 	tickerChan := make(chan any)
@@ -42,13 +55,48 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		for {
 			select {
 			case <-tickerChan:
-				fmt.Println("Meanwhile Some other logic too be implemented here")
+				// core logic of the workers activity like map or reduce task are implemented here
+				if employementStatus {
+					intermediate := []KeyValue{}
+					FileContent := RetriveFileContent(locationToBeRead)
+					kva := mapf(locationToBeRead, string(FileContent))
+					intermediate = append(intermediate, kva...)
+
+					sort.Sort(ByKey(intermediate))
+
+					name := fmt.Sprintf("inter-files/mr-map-inter-%d-%d", workerNumber, ihash(string(FileContent))%TheNumberOfReduceTasks)
+					dst, err3 := os.Create(name)
+					if err3 != nil {
+						panic(err3)
+					}
+
+				}
 			case <-foo.C:
-				actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement, employementStatus)
+				numberOfReduceTasks, NumberOfHeartBeatsSent, NumberOfHeartBeatsSentSinceEmployement, AssigningJob, locationToBeReadFrom := actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement, employementStatus)
+				if AssigningJob == true {
+					employementStatus = true
+					locationToBeRead = locationToBeReadFrom
+					TotalNumberOfHeartBeatsSentSinceEmployement = NumberOfHeartBeatsSentSinceEmployement
+				}
+				TotalNumberOfHeartBeatsSent = NumberOfHeartBeatsSent
+				TheNumberOfReduceTasks = numberOfReduceTasks
 			}
 		}
 	}()
 	wg.Wait()
+}
+
+func RetriveFileContent(FilePath string) []byte {
+	FileInstance, err := os.Open(FilePath)
+	if err != nil {
+		panic(err)
+	}
+	defer FileInstance.Close()
+	FileContent, err := io.ReadAll(FileInstance)
+	if err != nil {
+		panic(err)
+	}
+	return FileContent
 }
 
 func CallToInitialize() int {
@@ -66,7 +114,7 @@ func CallToInitialize() int {
 	}
 }
 
-func actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement int, employementStatus bool) {
+func actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement int, employementStatus bool) (int, int, int, bool, string) {
 	ToSend := HeartbeatSyn{workerNumber, employementStatus, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement, time.Now()}
 	Reply := HeartbearAck{}
 
@@ -76,6 +124,10 @@ func actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHear
 	} else {
 		fmt.Println("Something went wrong while sending the hearbeat to the coordinator ")
 	}
+	if Reply.AssigningJob {
+		fmt.Println("starting job")
+	}
+	return Reply.NumberOfReduceTasks, Reply.TotalNumberOfHeartBeatsSent, Reply.TotalNumberOfHeartBeatsSentSinceEmployement, Reply.AssigningJob, Reply.JobAllocatedLocation
 }
 
 // send an RPC request to the coordinator, wait for the response usually returns true returns false if something goes wrong.
@@ -95,23 +147,3 @@ func call(rpcname string, args interface{}, reply interface{}) bool {
 	fmt.Println(err)
 	return false
 }
-
-/*
-// example function to show how to make an RPC call to the coordinator the RPC argument and reply types are defined in rpc.go.
-func CallExample() {
-	// declare an argument structure.
-	args := ExampleArgs{}
-
-	args.X = 99
-
-	reply := ExampleReply{}
-
-	// send the RPC request, wait for the reply the "Coordinator.Example" tells the receiving server that we'd like to call the Example() method of struct Coordinator.
-	ok := call("Coordinator.Example", &args, &reply)
-	if ok {
-		fmt.Printf("reply.Y %v got from the coordinator\n", reply.Y)
-	} else {
-		fmt.Printf("call failed!\n")
-	}
-}
-*/

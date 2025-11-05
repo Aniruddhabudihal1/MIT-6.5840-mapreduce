@@ -15,10 +15,11 @@ type WorkerNode struct {
 	TotalNumberOfHeartBeatsSentSinceEmployement int
 	NumberOfJobsCompleted                       int
 	TimeStamp                                   time.Time
+	JobAllocatedLocation                        string
 }
 
 func NewNode(wn int) *WorkerNode {
-	new := WorkerNode{nil, nil, wn, false, 0, 0, 0, time.Now()}
+	new := WorkerNode{nil, nil, wn, false, 0, 0, 0, time.Now(), ""}
 	return &new
 }
 

@@ -11,6 +11,14 @@ type ReduceQueueNode struct {
 	prev                          *ReduceQueueNode
 }
 
+func (c *Coordinator) IsMapQueueEmpty() bool {
+	if c.MapQueueHead == nil {
+		return true
+	} else {
+		return false
+	}
+}
+
 func NewMapTask(inPath, outPath string) *MappingQueueNode {
 	newInstance := MappingQueueNode{inPath, outPath, nil, nil}
 	return &newInstance

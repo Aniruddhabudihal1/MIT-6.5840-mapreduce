@@ -27,10 +27,11 @@ type HeartbeatSyn struct {
 
 type HeartbearAck struct {
 	WorkerNumber                                int
-	EmployementStatus                           bool
+	AssigningJob                                bool
 	TotalNumberOfHeartBeatsSent                 int
 	TotalNumberOfHeartBeatsSentSinceEmployement int
-	NumberOfJobsCompleted                       int
+	JobAllocatedLocation                        string
+	NumberOfReduceTasks                         int
 }
 
 func coordinatorSock() string {

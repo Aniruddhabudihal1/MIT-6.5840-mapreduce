@@ -13,9 +13,10 @@ import (
 )
 
 type Coordinator struct {
-	head            *WorkerNode
-	MapQueueHead    *MappingQueueNode
-	reduceQueueHead *ReduceQueueNode
+	head                *WorkerNode
+	MapQueueHead        *MappingQueueNode
+	reduceQueueHead     *ReduceQueueNode
+	NumberOfReduceTasks int
 }
 
 // start a thread that listens for RPCs from worker.go
@@ -51,14 +52,23 @@ func (c *Coordinator) HeartBeatCoordinator(argument *HeartbeatSyn, resp *Heartbe
 	nodeInstance.TimeStamp = argument.Timestamp
 	fmt.Println("Total Number of heartbeats sent : ", nodeInstance.TotalNumberOfHeartBeatsSent, "from worker number : ", argument.WorkerNumber)
 
-	// TODO: Implement logic to provide job to the worker and then increment TotalNumberOfHeartBeatsSentSinceEmployemnt as well
 	// TODO: If a job gets over, should increment numbeofjobscompleted
 
 	resp.WorkerNumber = nodeInstance.WorkerNumber
-	resp.EmployementStatus = nodeInstance.EmployementStatus
+	if !c.IsMapQueueEmpty() && !nodeInstance.EmployementStatus {
+		resp.AssigningJob = true
+		jobLoc := c.PopMapTask()
+		nodeInstance.JobAllocatedLocation = jobLoc.inputFilePath
+		resp.JobAllocatedLocation = nodeInstance.JobAllocatedLocation
+	} else {
+		resp.AssigningJob = false
+	}
+	if nodeInstance.EmployementStatus {
+		nodeInstance.TotalNumberOfHeartBeatsSentSinceEmployement += 1
+	}
 	resp.TotalNumberOfHeartBeatsSent = nodeInstance.TotalNumberOfHeartBeatsSent
-	resp.NumberOfJobsCompleted = nodeInstance.NumberOfJobsCompleted
 	resp.TotalNumberOfHeartBeatsSentSinceEmployement = nodeInstance.TotalNumberOfHeartBeatsSentSinceEmployement
+	resp.NumberOfReduceTasks = c.NumberOfReduceTasks
 	return nil
 }
 
@@ -67,6 +77,8 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	// Initializes the coordinator and the interaction between the worker and the Coordinator
 	c := Coordinator{}
 	c.server()
+
+	c.NumberOfReduceTasks = nReduce
 
 	// var wg sync.WaitGroup
 	err1 := os.MkdirAll("map-files", 0o755)
