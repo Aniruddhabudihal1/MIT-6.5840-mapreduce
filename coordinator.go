@@ -10,6 +10,7 @@ import (
 	"net/rpc"
 	"os"
 	"strings"
+	// "sync"
 )
 
 type Coordinator struct {
@@ -68,15 +69,22 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
 	c.server()
 
-	for i := range files {
-		c.ExtractContent(files[i])
+	// var wg sync.WaitGroup
+	err1 := os.MkdirAll("map-files", 0o755)
+	if err1 != nil {
+		panic(err1)
+	}
+
+	for i := 0; i < len(files); i++ {
+		fmt.Println(files[i])
+		ExtractContent(files[i])
 	}
 
 	return &c
 }
 
 // This breaks down the main file and pushes the tasks to the mapping queue
-func (c *Coordinator) ExtractContent(fileName string) {
+func ExtractContent(fileName string) {
 	fileInstance, err := os.Open(fileName)
 	if err != nil {
 		fmt.Println(err)
@@ -84,32 +92,33 @@ func (c *Coordinator) ExtractContent(fileName string) {
 	}
 
 	var offset int64
-	offset = 64000
+	offset = 128000
 	var i int64
 	i = 0
 	for ; ; i++ {
-		err := extraction(fileInstance, offset, i)
+		err := extraction(fileName, fileInstance, offset, i)
 		if err != nil {
 			break
 		}
 	}
 }
 
-func extraction(FileContent *os.File, offset int64, i int64) error {
+func extraction(filename string, FileContent *os.File, offset int64, i int64) error {
 	_, err1 := FileContent.Seek(offset*i, 0)
 	if err1 != nil {
 		panic(err1)
 	}
 
-	name := fmt.Sprintf("mr-map-task-%d", i)
+	name := fmt.Sprintf("map-files/mr-map-task-%d-%s", i, filename)
 	dst, err3 := os.Create(name)
 	if err3 != nil {
 		panic(err3)
 	}
-	_, err4 := io.CopyN(dst, FileContent, 64)
-	if err4 != nil && err4 == io.EOF {
+	_, err4 := io.CopyN(dst, FileContent, offset)
+	if errors.Is(err4, io.EOF) || errors.Is(err4, io.ErrUnexpectedEOF) {
 		return err4
 	}
+
 	return nil
 }
 

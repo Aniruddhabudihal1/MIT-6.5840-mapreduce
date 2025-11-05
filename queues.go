@@ -5,6 +5,7 @@ type MappingQueueNode struct {
 	next                          *MappingQueueNode
 	prev                          *MappingQueueNode
 }
+
 type ReduceQueueNode struct {
 	inputFilePath, outputFilePath string
 	next                          *ReduceQueueNode
