@@ -32,6 +32,7 @@ type HeartbearAck struct {
 	TotalNumberOfHeartBeatsSentSinceEmployement int
 	JobAllocatedLocation                        string
 	NumberOfReduceTasks                         int
+	TypeOfJob                                   int
 }
 
 func coordinatorSock() string {
@@ -40,14 +41,3 @@ func coordinatorSock() string {
 	s += strconv.Itoa(os.Getuid())
 	return s
 }
-
-/*
-// example to show how to declare the arguments and reply for an RPC.
-type ExampleArgs struct {
-	X int
-}
-
-type ExampleReply struct {
-	Y int
-}
-*/

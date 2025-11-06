@@ -19,8 +19,6 @@ type Coordinator struct {
 	NumberOfReduceTasks int
 }
 
-// start a thread that listens for RPCs from worker.go
-// It is through this that, worker communicates with the Coordinator
 func (c *Coordinator) server() {
 	rpc.Register(c)
 	rpc.HandleHTTP()
@@ -52,16 +50,22 @@ func (c *Coordinator) HeartBeatCoordinator(argument *HeartbeatSyn, resp *Heartbe
 	nodeInstance.TimeStamp = argument.Timestamp
 	fmt.Println("Total Number of heartbeats sent : ", nodeInstance.TotalNumberOfHeartBeatsSent, "from worker number : ", argument.WorkerNumber)
 
-	// TODO: If a job gets over, should increment numbeofjobscompleted
-
 	resp.WorkerNumber = nodeInstance.WorkerNumber
 	if !c.IsMapQueueEmpty() && !nodeInstance.EmployementStatus {
 		resp.AssigningJob = true
 		jobLoc := c.PopMapTask()
 		nodeInstance.JobAllocatedLocation = jobLoc.inputFilePath
 		resp.JobAllocatedLocation = nodeInstance.JobAllocatedLocation
+		resp.TypeOfJob = 1
+	} else if c.IsMapQueueEmpty() && !c.IsReduceQueueEmpty() && !nodeInstance.EmployementStatus {
+		resp.AssigningJob = true
+		jobLoc := c.PopReduceTask()
+		nodeInstance.JobAllocatedLocation = jobLoc.inputFilePath
+		resp.JobAllocatedLocation = nodeInstance.JobAllocatedLocation
+		resp.TypeOfJob = 2
 	} else {
 		resp.AssigningJob = false
+		resp.TypeOfJob = 0
 	}
 	if nodeInstance.EmployementStatus {
 		nodeInstance.TotalNumberOfHeartBeatsSentSinceEmployement += 1
@@ -69,18 +73,17 @@ func (c *Coordinator) HeartBeatCoordinator(argument *HeartbeatSyn, resp *Heartbe
 	resp.TotalNumberOfHeartBeatsSent = nodeInstance.TotalNumberOfHeartBeatsSent
 	resp.TotalNumberOfHeartBeatsSentSinceEmployement = nodeInstance.TotalNumberOfHeartBeatsSentSinceEmployement
 	resp.NumberOfReduceTasks = c.NumberOfReduceTasks
+
 	return nil
 }
 
 // create a Coordinator. main/mrcoordinator.go calls this function. nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
-	// Initializes the coordinator and the interaction between the worker and the Coordinator
 	c := Coordinator{}
 	c.server()
 
 	c.NumberOfReduceTasks = nReduce
 
-	// var wg sync.WaitGroup
 	err1 := os.MkdirAll("map-files", 0o755)
 	if err1 != nil {
 		panic(err1)
@@ -96,10 +99,6 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 
 	c.AddingToQueue()
 
-	tmp := c.MapQueueHead
-	for ; tmp.next != nil; tmp = tmp.next {
-		fmt.Println(tmp.inputFilePath, " and the output path is ", tmp.outputFilePath)
-	}
 	return &c
 }
 

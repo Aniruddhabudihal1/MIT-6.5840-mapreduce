@@ -1,6 +1,8 @@
 package mr
 
 import (
+	//	"bytes"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"io"
@@ -45,20 +47,34 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 	TotalNumberOfHeartBeatsSentSinceEmployement := 0
 	locationToBeRead := ""
 	TheNumberOfReduceTasks := 0
+	typeOfJobAssigned := 0
 
 	foo := time.NewTicker(time.Second * 3)
-	tickerChan := make(chan any)
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		for {
 			select {
-			case <-tickerChan:
-				// core logic of the workers activity like map or reduce task are implemented here
-				if employementStatus {
+			// hearbear logic
+			case <-foo.C:
+				fmt.Println("Is it entering here")
+				numberOfReduceTasks, NumberOfHeartBeatsSent, NumberOfHeartBeatsSentSinceEmployement, TypeOfJobAssigned, AssigningJob, locationToBeReadFrom := actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement, employementStatus)
+				if AssigningJob {
+					employementStatus = true
+					locationToBeRead = locationToBeReadFrom
+					TotalNumberOfHeartBeatsSentSinceEmployement = NumberOfHeartBeatsSentSinceEmployement
+					typeOfJobAssigned = TypeOfJobAssigned
+				}
+				TotalNumberOfHeartBeatsSent = NumberOfHeartBeatsSent
+				TheNumberOfReduceTasks = numberOfReduceTasks
+				// main kelsa
+			default:
+				// map task
+				if employementStatus && typeOfJobAssigned == 1 {
+					fmt.Println("Enters here")
 					intermediate := []KeyValue{}
-					FileContent := RetriveFileContent(locationToBeRead)
+					FileContent := RetriveFileContent("map-files/" + locationToBeRead)
 					kva := mapf(locationToBeRead, string(FileContent))
 					intermediate = append(intermediate, kva...)
 
@@ -69,17 +85,15 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 					if err3 != nil {
 						panic(err3)
 					}
-
+					enc := json.NewEncoder(dst)
+					err := enc.Encode(intermediate)
+					if err != nil {
+						panic(err)
+					}
+				} else if employementStatus && typeOfJobAssigned == 2 {
 				}
-			case <-foo.C:
-				numberOfReduceTasks, NumberOfHeartBeatsSent, NumberOfHeartBeatsSentSinceEmployement, AssigningJob, locationToBeReadFrom := actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement, employementStatus)
-				if AssigningJob == true {
-					employementStatus = true
-					locationToBeRead = locationToBeReadFrom
-					TotalNumberOfHeartBeatsSentSinceEmployement = NumberOfHeartBeatsSentSinceEmployement
-				}
-				TotalNumberOfHeartBeatsSent = NumberOfHeartBeatsSent
-				TheNumberOfReduceTasks = numberOfReduceTasks
+				NumberOfJobsCompleted = NumberOfJobsCompleted + 1
+				employementStatus = false
 			}
 		}
 	}()
@@ -114,7 +128,7 @@ func CallToInitialize() int {
 	}
 }
 
-func actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement int, employementStatus bool) (int, int, int, bool, string) {
+func actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement int, employementStatus bool) (int, int, int, int, bool, string) {
 	ToSend := HeartbeatSyn{workerNumber, employementStatus, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement, time.Now()}
 	Reply := HeartbearAck{}
 
@@ -124,10 +138,7 @@ func actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHear
 	} else {
 		fmt.Println("Something went wrong while sending the hearbeat to the coordinator ")
 	}
-	if Reply.AssigningJob {
-		fmt.Println("starting job")
-	}
-	return Reply.NumberOfReduceTasks, Reply.TotalNumberOfHeartBeatsSent, Reply.TotalNumberOfHeartBeatsSentSinceEmployement, Reply.AssigningJob, Reply.JobAllocatedLocation
+	return Reply.NumberOfReduceTasks, Reply.TotalNumberOfHeartBeatsSent, Reply.TotalNumberOfHeartBeatsSentSinceEmployement, Reply.TypeOfJob, Reply.AssigningJob, Reply.JobAllocatedLocation
 }
 
 // send an RPC request to the coordinator, wait for the response usually returns true returns false if something goes wrong.
