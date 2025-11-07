@@ -30,9 +30,10 @@ type HeartbearAck struct {
 	AssigningJob                                bool
 	TotalNumberOfHeartBeatsSent                 int
 	TotalNumberOfHeartBeatsSentSinceEmployement int
-	JobAllocatedLocation                        string
-	NumberOfReduceTasks                         int
+	MapJobAllocatedLocation                     string
 	TypeOfJob                                   int
+	ReduceJobAllocatedFile                      string
+	FinalOutputLocation                         string
 }
 
 func coordinatorSock() string {

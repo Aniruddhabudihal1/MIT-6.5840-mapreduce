@@ -13,10 +13,17 @@ import (
 )
 
 type Coordinator struct {
-	head                *WorkerNode
-	MapQueueHead        *MappingQueueNode
-	reduceQueueHead     *ReduceQueueNode
-	NumberOfReduceTasks int
+	head                            *WorkerNode
+	MapQueueHead                    *MappingQueueNode
+	ReduceQueueHead                 *ReduceQueueNode
+	MapDirName                      string
+	InterDirName                    string
+	FinalOutPutLocationOutput       string
+	InputFiles                      []string
+	InsertionIntoMapQueueDone       bool
+	InsertionIntoTheReduceQueueDone bool
+	MapWorkDone                     bool
+	numberOfPopsForMapTasks         int
 }
 
 func (c *Coordinator) server() {
@@ -50,31 +57,64 @@ func (c *Coordinator) HeartBeatCoordinator(argument *HeartbeatSyn, resp *Heartbe
 	nodeInstance.TimeStamp = argument.Timestamp
 	fmt.Println("Total Number of heartbeats sent : ", nodeInstance.TotalNumberOfHeartBeatsSent, "from worker number : ", argument.WorkerNumber)
 
+	if c.InsertionIntoMapQueueDone == false {
+		for i := range c.InputFiles {
+			ExtractContent(c.InputFiles[i])
+		}
+		c.AddingToQueue()
+		fmt.Println("Insertion into the map queue Done")
+		c.InsertionIntoMapQueueDone = true
+	}
 	resp.WorkerNumber = nodeInstance.WorkerNumber
-	if !c.IsMapQueueEmpty() && !nodeInstance.EmployementStatus {
+	if c.IsMapQueueEmpty() {
+		fmt.Println("enterssss")
+		c.MapWorkDone = true
+	}
+
+	if argument.EmployementStatus == false {
+		nodeInstance.EmployementStatus = true
+	}
+	if !c.MapWorkDone {
+		nodeInstance.TotalNumberOfHeartBeatsSentSinceEmployement += 1
 		resp.AssigningJob = true
 		jobLoc := c.PopMapTask()
-		nodeInstance.JobAllocatedLocation = jobLoc.inputFilePath
-		resp.JobAllocatedLocation = nodeInstance.JobAllocatedLocation
+		c.numberOfPopsForMapTasks++
+		nodeInstance.MapJobAllocatedLocation = jobLoc.inputFilePath
+		resp.MapJobAllocatedLocation = nodeInstance.MapJobAllocatedLocation
 		resp.TypeOfJob = 1
-	} else if c.IsMapQueueEmpty() && !c.IsReduceQueueEmpty() && !nodeInstance.EmployementStatus {
+		nodeInstance.EmployementStatus = false
+	} else if c.MapWorkDone {
+		if c.InsertionIntoTheReduceQueueDone == false {
+			interrnames, err := ListNames(c.InterDirName)
+			if err != nil {
+				panic(err)
+			}
+			for i := 0; i < NumberOfFiles(c.InterDirName); i++ {
+				foo := NewReduceTask(c.InterDirName+interrnames[i], c.FinalOutPutLocationOutput)
+				c.InsertIntoReduceQueue(foo)
+			}
+			c.InsertionIntoTheReduceQueueDone = true
+		}
+		fmt.Println("Enters for reduce job")
 		resp.AssigningJob = true
-		jobLoc := c.PopReduceTask()
-		nodeInstance.JobAllocatedLocation = jobLoc.inputFilePath
-		resp.JobAllocatedLocation = nodeInstance.JobAllocatedLocation
 		resp.TypeOfJob = 2
+		resp.FinalOutputLocation = c.FinalOutPutLocationOutput
+		resp.ReduceJobAllocatedFile = c.PopReduceTask().inputFilePath
+		nodeInstance.EmployementStatus = false
 	} else {
 		resp.AssigningJob = false
 		resp.TypeOfJob = 0
 	}
-	if nodeInstance.EmployementStatus {
-		nodeInstance.TotalNumberOfHeartBeatsSentSinceEmployement += 1
-	}
+
 	resp.TotalNumberOfHeartBeatsSent = nodeInstance.TotalNumberOfHeartBeatsSent
 	resp.TotalNumberOfHeartBeatsSentSinceEmployement = nodeInstance.TotalNumberOfHeartBeatsSentSinceEmployement
-	resp.NumberOfReduceTasks = c.NumberOfReduceTasks
-
+	resp.FinalOutputLocation = c.FinalOutPutLocationOutput
 	return nil
+}
+
+func NumberOfFiles(filePath string) int {
+	files, _ := os.ReadDir(filePath)
+	return len(files)
 }
 
 // create a Coordinator. main/mrcoordinator.go calls this function. nReduce is the number of reduce tasks to use.
@@ -82,22 +122,22 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
 	c.server()
 
-	c.NumberOfReduceTasks = nReduce
-
-	err1 := os.MkdirAll("map-files", 0o755)
+	c.MapDirName = "map-files"
+	c.InterDirName = "inter-files"
+	c.FinalOutPutLocationOutput = "mr-map-final-output"
+	c.InputFiles = files
+	c.InsertionIntoMapQueueDone = false
+	c.InsertionIntoTheReduceQueueDone = false
+	c.MapWorkDone = false
+	c.numberOfPopsForMapTasks = 0
+	err1 := os.MkdirAll(c.MapDirName, 0o755)
 	if err1 != nil {
 		panic(err1)
 	}
-	err2 := os.MkdirAll("inter-files", 0o755)
+	err2 := os.MkdirAll(c.InterDirName, 0o755)
 	if err2 != nil {
 		panic(err2)
 	}
-
-	for i := 0; i < len(files); i++ {
-		ExtractContent(files[i])
-	}
-
-	c.AddingToQueue()
 
 	return &c
 }

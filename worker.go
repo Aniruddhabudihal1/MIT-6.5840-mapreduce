@@ -45,8 +45,10 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 	NumberOfJobsCompleted := 0
 	TotalNumberOfHeartBeatsSent := 0
 	TotalNumberOfHeartBeatsSentSinceEmployement := 0
-	locationToBeRead := ""
-	TheNumberOfReduceTasks := 0
+	MaplocationToBeRead := ""
+	reduceLocationToBeRead := ""
+	finalFinalOutputLocation := ""
+
 	typeOfJobAssigned := 0
 
 	foo := time.NewTicker(time.Second * 3)
@@ -58,29 +60,29 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 			select {
 			// hearbear logic
 			case <-foo.C:
-				fmt.Println("Is it entering here")
-				numberOfReduceTasks, NumberOfHeartBeatsSent, NumberOfHeartBeatsSentSinceEmployement, TypeOfJobAssigned, AssigningJob, locationToBeReadFrom := actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement, employementStatus)
+				reduceJobAllocatedFile, NumberOfHeartBeatsSent, NumberOfHeartBeatsSentSinceEmployement, TypeOfJobAssigned, AssigningJob, MaplocationToBeReadFrom, FinalOutputLocation := actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement, employementStatus)
 				if AssigningJob {
 					employementStatus = true
-					locationToBeRead = locationToBeReadFrom
+					MaplocationToBeRead = MaplocationToBeReadFrom
 					TotalNumberOfHeartBeatsSentSinceEmployement = NumberOfHeartBeatsSentSinceEmployement
 					typeOfJobAssigned = TypeOfJobAssigned
+					finalFinalOutputLocation = FinalOutputLocation
+					reduceLocationToBeRead = reduceJobAllocatedFile
 				}
 				TotalNumberOfHeartBeatsSent = NumberOfHeartBeatsSent
-				TheNumberOfReduceTasks = numberOfReduceTasks
 				// main kelsa
 			default:
 				// map task
 				if employementStatus && typeOfJobAssigned == 1 {
-					fmt.Println("Enters here")
+					fmt.Println("Starting Map Job")
 					intermediate := []KeyValue{}
-					FileContent := RetriveFileContent("map-files/" + locationToBeRead)
-					kva := mapf(locationToBeRead, string(FileContent))
+					FileContent := RetriveFileContent("map-files/" + MaplocationToBeRead)
+					kva := mapf(MaplocationToBeRead, string(FileContent))
 					intermediate = append(intermediate, kva...)
 
 					sort.Sort(ByKey(intermediate))
 
-					name := fmt.Sprintf("inter-files/mr-map-inter-%d-%d", workerNumber, ihash(string(FileContent))%TheNumberOfReduceTasks)
+					name := fmt.Sprintf("inter-files/mr-map-inter-%d-%d", workerNumber, ihash(string(FileContent))%100)
 					dst, err3 := os.Create(name)
 					if err3 != nil {
 						panic(err3)
@@ -90,7 +92,10 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 					if err != nil {
 						panic(err)
 					}
+					// reduce task
 				} else if employementStatus && typeOfJobAssigned == 2 {
+					fmt.Println(finalFinalOutputLocation)
+					fmt.Println(reduceLocationToBeRead)
 				}
 				NumberOfJobsCompleted = NumberOfJobsCompleted + 1
 				employementStatus = false
@@ -128,7 +133,7 @@ func CallToInitialize() int {
 	}
 }
 
-func actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement int, employementStatus bool) (int, int, int, int, bool, string) {
+func actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement int, employementStatus bool) (string, int, int, int, bool, string, string) {
 	ToSend := HeartbeatSyn{workerNumber, employementStatus, NumberOfJobsCompleted, TotalNumberOfHeartBeatsSent, TotalNumberOfHeartBeatsSentSinceEmployement, time.Now()}
 	Reply := HeartbearAck{}
 
@@ -138,7 +143,7 @@ func actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHear
 	} else {
 		fmt.Println("Something went wrong while sending the hearbeat to the coordinator ")
 	}
-	return Reply.NumberOfReduceTasks, Reply.TotalNumberOfHeartBeatsSent, Reply.TotalNumberOfHeartBeatsSentSinceEmployement, Reply.TypeOfJob, Reply.AssigningJob, Reply.JobAllocatedLocation
+	return Reply.FinalOutputLocation, Reply.TotalNumberOfHeartBeatsSent, Reply.TotalNumberOfHeartBeatsSentSinceEmployement, Reply.TypeOfJob, Reply.AssigningJob, Reply.MapJobAllocatedLocation, Reply.FinalOutputLocation
 }
 
 // send an RPC request to the coordinator, wait for the response usually returns true returns false if something goes wrong.

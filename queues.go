@@ -43,13 +43,25 @@ func (c *Coordinator) InsertIntoMapQueue(node *MappingQueueNode) {
 }
 
 func (c *Coordinator) PopMapTask() *MappingQueueNode {
+	if c.MapQueueHead.next == nil {
+		x := c.MapQueueHead
+		c.MapQueueHead = nil
+		return x
+	}
 	tmp := c.MapQueueHead
 	for ; tmp.next != nil; tmp = tmp.next {
 	}
-	back := tmp.prev
-	back.next = nil
-	tmp.prev = nil
-	return tmp
+	if tmp.next == nil {
+		if tmp.prev != nil {
+			tmp.prev.next = nil
+		}
+		if tmp.prev != nil {
+			tmp.prev = nil
+		}
+
+		return tmp
+	}
+	return nil
 }
 
 func NewReduceTask(inPath, outPath string) *ReduceQueueNode {
@@ -60,17 +72,17 @@ func NewReduceTask(inPath, outPath string) *ReduceQueueNode {
 func (c *Coordinator) InsertIntoReduceQueue(node *ReduceQueueNode) {
 	NewNode := NewReduceTask(node.inputFilePath, node.outputFilePath)
 
-	if c.reduceQueueHead == nil {
-		c.reduceQueueHead = NewNode
+	if c.ReduceQueueHead == nil {
+		c.ReduceQueueHead = NewNode
 		return
 	}
-	NewNode.next = c.reduceQueueHead
-	c.reduceQueueHead.prev = NewNode
-	c.reduceQueueHead = NewNode
+	NewNode.next = c.ReduceQueueHead
+	c.ReduceQueueHead.prev = NewNode
+	c.ReduceQueueHead = NewNode
 }
 
 func (c *Coordinator) PopReduceTask() *ReduceQueueNode {
-	tmp := c.reduceQueueHead
+	tmp := c.ReduceQueueHead
 	for ; tmp.next != nil; tmp = tmp.next {
 	}
 	back := tmp.prev
