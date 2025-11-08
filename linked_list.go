@@ -40,7 +40,7 @@ func (c *Coordinator) InsertNode() int {
 		c.head = NewNode(bar)
 		return bar
 	}
-	foo := NewNode(c.GetLatestValue())
+	foo := NewNode(bar)
 	tmp := c.head
 	for ; tmp.next != nil; tmp = tmp.next {
 	}

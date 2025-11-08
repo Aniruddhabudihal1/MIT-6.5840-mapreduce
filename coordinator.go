@@ -23,6 +23,7 @@ type Coordinator struct {
 	InsertionIntoMapQueueDone       bool
 	InsertionIntoTheReduceQueueDone bool
 	MapWorkDone                     bool
+	ReduceWorkIsDone                bool
 	numberOfPopsForMapTasks         int
 }
 
@@ -66,14 +67,31 @@ func (c *Coordinator) HeartBeatCoordinator(argument *HeartbeatSyn, resp *Heartbe
 		c.InsertionIntoMapQueueDone = true
 	}
 	resp.WorkerNumber = nodeInstance.WorkerNumber
-	if c.IsMapQueueEmpty() {
-		fmt.Println("enterssss")
+	if c.IsMapQueueEmpty() && !c.InsertionIntoTheReduceQueueDone {
+		fmt.Println("Map work done")
 		c.MapWorkDone = true
+		if c.InsertionIntoTheReduceQueueDone == false {
+			interrnames, err := ListNames(c.InterDirName)
+			if err != nil {
+				panic(err)
+			}
+			for i := 0; i < NumberOfFiles(c.InterDirName); i++ {
+				foo := NewReduceTask(c.InterDirName+"/"+interrnames[i], c.FinalOutPutLocationOutput)
+				c.InsertIntoReduceQueue(foo)
+			}
+			c.InsertionIntoTheReduceQueueDone = true
+			fmt.Println("Insertion into the reduce queue done")
+		}
+	}
+
+	if c.IsReduceQueueEmpty() {
+		c.ReduceWorkIsDone = true
 	}
 
 	if argument.EmployementStatus == false {
 		nodeInstance.EmployementStatus = true
 	}
+
 	if !c.MapWorkDone {
 		nodeInstance.TotalNumberOfHeartBeatsSentSinceEmployement += 1
 		resp.AssigningJob = true
@@ -84,22 +102,14 @@ func (c *Coordinator) HeartBeatCoordinator(argument *HeartbeatSyn, resp *Heartbe
 		resp.TypeOfJob = 1
 		nodeInstance.EmployementStatus = false
 	} else if c.MapWorkDone {
-		if c.InsertionIntoTheReduceQueueDone == false {
-			interrnames, err := ListNames(c.InterDirName)
-			if err != nil {
-				panic(err)
-			}
-			for i := 0; i < NumberOfFiles(c.InterDirName); i++ {
-				foo := NewReduceTask(c.InterDirName+interrnames[i], c.FinalOutPutLocationOutput)
-				c.InsertIntoReduceQueue(foo)
-			}
-			c.InsertionIntoTheReduceQueueDone = true
-		}
 		fmt.Println("Enters for reduce job")
 		resp.AssigningJob = true
 		resp.TypeOfJob = 2
-		resp.FinalOutputLocation = c.FinalOutPutLocationOutput
-		resp.ReduceJobAllocatedFile = c.PopReduceTask().inputFilePath
+		foo1 := c.PopReduceTask()
+		fmt.Println("Input location being sent to the worker is ", foo1.inputFilePath)
+		fmt.Println("Ouput location being sent to the worker is ", foo1.outputFilePath)
+		resp.FinalOutputLocation = foo1.outputFilePath
+		resp.ReduceJobAllocatedFile = foo1.inputFilePath
 		nodeInstance.EmployementStatus = false
 	} else {
 		resp.AssigningJob = false
@@ -137,6 +147,11 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	err2 := os.MkdirAll(c.InterDirName, 0o755)
 	if err2 != nil {
 		panic(err2)
+	}
+
+	_, err3 := os.Create(c.FinalOutPutLocationOutput)
+	if err3 != nil {
+		panic(err3)
 	}
 
 	return &c

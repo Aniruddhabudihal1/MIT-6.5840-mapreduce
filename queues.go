@@ -20,7 +20,7 @@ func (c *Coordinator) IsMapQueueEmpty() bool {
 }
 
 func (c *Coordinator) IsReduceQueueEmpty() bool {
-	if c.MapQueueHead == nil {
+	if c.ReduceQueueHead == nil {
 		return true
 	} else {
 		return false
@@ -82,11 +82,23 @@ func (c *Coordinator) InsertIntoReduceQueue(node *ReduceQueueNode) {
 }
 
 func (c *Coordinator) PopReduceTask() *ReduceQueueNode {
+	if c.ReduceQueueHead.next == nil {
+		x := c.ReduceQueueHead
+		c.ReduceQueueHead = nil
+		return x
+	}
 	tmp := c.ReduceQueueHead
 	for ; tmp.next != nil; tmp = tmp.next {
 	}
-	back := tmp.prev
-	back.next = nil
-	tmp.prev = nil
-	return tmp
+	if tmp.next == nil {
+		if tmp.prev != nil {
+			tmp.prev.next = nil
+		}
+		if tmp.prev != nil {
+			tmp.prev = nil
+		}
+
+		return tmp
+	}
+	return nil
 }

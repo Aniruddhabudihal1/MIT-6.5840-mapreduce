@@ -18,9 +18,17 @@ import (
 type ByKey []KeyValue
 
 // for sorting by key.
-func (a ByKey) Len() int           { return len(a) }
-func (a ByKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
+func (a ByKey) Len() int {
+	return len(a)
+}
+
+func (a ByKey) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+func (a ByKey) Less(i, j int) bool {
+	return a[i].Key < a[j].Key
+}
 
 // Map functions return a slice of KeyValue.
 type KeyValue struct {
@@ -38,6 +46,8 @@ func ihash(key string) int {
 // main/mrworker.go calls this function.
 func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
 	var wg sync.WaitGroup
+
+	IntermediateDataToBeSent := []KeyValue{}
 
 	// Global Variables
 	workerNumber := CallToInitialize()
@@ -75,27 +85,70 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 				// map task
 				if employementStatus && typeOfJobAssigned == 1 {
 					fmt.Println("Starting Map Job")
-					intermediate := []KeyValue{}
+
 					FileContent := RetriveFileContent("map-files/" + MaplocationToBeRead)
-					kva := mapf(MaplocationToBeRead, string(FileContent))
-					intermediate = append(intermediate, kva...)
-
-					sort.Sort(ByKey(intermediate))
-
+					kv := mapf(MaplocationToBeRead, string(FileContent))
+					IntermediateDataToBeSent = append(IntermediateDataToBeSent, kv...)
 					name := fmt.Sprintf("inter-files/mr-map-inter-%d-%d", workerNumber, ihash(string(FileContent))%100)
 					dst, err3 := os.Create(name)
 					if err3 != nil {
 						panic(err3)
 					}
 					enc := json.NewEncoder(dst)
-					err := enc.Encode(intermediate)
+					err := enc.Encode(IntermediateDataToBeSent)
 					if err != nil {
 						panic(err)
 					}
 					// reduce task
 				} else if employementStatus && typeOfJobAssigned == 2 {
-					fmt.Println(finalFinalOutputLocation)
-					fmt.Println(reduceLocationToBeRead)
+					fmt.Println("Starting the reduce job")
+					fmt.Println("Reading ", reduceLocationToBeRead)
+					input, err := os.OpenFile(reduceLocationToBeRead, os.O_CREATE|os.O_RDWR, 0o644)
+					if err != nil {
+						panic(err)
+					}
+					fmt.Println("final output file ", finalFinalOutputLocation)
+					output1, err := os.OpenFile(finalFinalOutputLocation, os.O_CREATE|os.O_RDWR, 0o644)
+					if err != nil {
+						panic(err)
+					}
+
+					Intermed := []KeyValue{}
+					dec := json.NewDecoder(input)
+
+					for {
+						var KVinstance KeyValue
+						fmt.Println("hello")
+						if err := dec.Decode(&Intermed); err != nil {
+							break
+						}
+						fmt.Println(Intermed)
+						Intermed = append(Intermed, KVinstance)
+					}
+					sort.Sort(ByKey(Intermed))
+
+					i := 0
+					fmt.Println(Intermed)
+					for i < len(Intermed) {
+						j := i + 1
+						for j < len(Intermed) && Intermed[j].Key == Intermed[i].Key {
+							j++
+						}
+						values := []string{}
+						for k := i; k < j; k++ {
+							values = append(values, Intermed[k].Value)
+						}
+						actualOutput := reducef(Intermed[i].Key, values)
+
+						amountWritten, err := fmt.Fprintf(output1, "%v %v\n", Intermed[i].Key, actualOutput)
+						if err != nil {
+							panic(err)
+						}
+						fmt.Println(amountWritten)
+
+						i = j
+					}
+					output1.Close()
 				}
 				NumberOfJobsCompleted = NumberOfJobsCompleted + 1
 				employementStatus = false
@@ -143,7 +196,7 @@ func actualHeartbeatLogic(workerNumber, NumberOfJobsCompleted, TotalNumberOfHear
 	} else {
 		fmt.Println("Something went wrong while sending the hearbeat to the coordinator ")
 	}
-	return Reply.FinalOutputLocation, Reply.TotalNumberOfHeartBeatsSent, Reply.TotalNumberOfHeartBeatsSentSinceEmployement, Reply.TypeOfJob, Reply.AssigningJob, Reply.MapJobAllocatedLocation, Reply.FinalOutputLocation
+	return Reply.ReduceJobAllocatedFile, Reply.TotalNumberOfHeartBeatsSent, Reply.TotalNumberOfHeartBeatsSentSinceEmployement, Reply.TypeOfJob, Reply.AssigningJob, Reply.MapJobAllocatedLocation, Reply.FinalOutputLocation
 }
 
 // send an RPC request to the coordinator, wait for the response usually returns true returns false if something goes wrong.
